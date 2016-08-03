@@ -35,7 +35,7 @@ from platformio.util import exec_command
 
 env = DefaultEnvironment()
 
-FRAMEWORK_DIR = env.DevPlatform().get_package_dir("framework-libopencm3")
+FRAMEWORK_DIR = env.PioPlatform().get_package_dir("framework-libopencm3")
 assert isdir(FRAMEWORK_DIR)
 
 

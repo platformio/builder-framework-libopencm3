@@ -145,15 +145,10 @@ if env.BoardConfig().get("build.core") == "lm4f":
         CPPDEFINES=["LM4F"]
     )
 
-env.VariantDirWrap(
-    join("$BUILD_DIR", "FrameworkLibOpenCM3Variant"),
-    join(FRAMEWORK_DIR, "include")
-)
-
 env.Append(
     CPPPATH=[
-        join("$BUILD_DIR", "FrameworkLibOpenCM3"),
-        join("$BUILD_DIR", "FrameworkLibOpenCM3Variant")
+        FRAMEWORK_DIR,
+        join(FRAMEWORK_DIR, "include")
     ]
 )
 
@@ -173,9 +168,10 @@ env.Replace(
 )
 
 libs = []
-env.VariantDirWrap(
+env.VariantDir(
     join("$BUILD_DIR", "FrameworkLibOpenCM3"),
-    FRAMEWORK_DIR
+    FRAMEWORK_DIR,
+    duplicate=False
 )
 libs.append(env.Library(
     join("$BUILD_DIR", "FrameworkLibOpenCM3"),

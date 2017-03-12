@@ -141,13 +141,15 @@ def merge_ld_scripts(main_ld_file):
 #
 
 
+root_dir = join(FRAMEWORK_DIR, "lib")
 if env.BoardConfig().get("build.core") == "tivac":
     env.Append(
         CPPDEFINES=["LM4F"]
     )
-    root_dir = join(FRAMEWORK_DIR, "lib", "lm4f")
+    root_dir = join(root_dir, "lm4f")
 elif env.BoardConfig().get("build.core") == "stm32":
-    root_dir = join(root_dir, env.BoardConfig().get("build.variant")[5:7])
+    root_dir = join(root_dir, env.BoardConfig().get("build.core"),
+                    env.BoardConfig().get("build.variant")[5:7])
 
 env.Append(
     CPPPATH=[

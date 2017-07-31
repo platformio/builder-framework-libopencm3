@@ -20,7 +20,7 @@ firmware library for various ARM Cortex-M0(+)/M3/M4 microcontrollers,
 including ST STM32, Ti Tiva and Stellaris, NXP LPC 11xx, 13xx, 15xx,
 17xx parts, Atmel SAM3, Energy Micro EFM32 and others.
 
-http://www.libopencm3.org/wiki/Main_Page
+http://www.libopencm3.org
 """
 
 from __future__ import absolute_import

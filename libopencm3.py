@@ -35,6 +35,8 @@ from platformio.util import exec_command
 
 env = DefaultEnvironment()
 
+env.SConscript("../_bare.py")
+
 FRAMEWORK_DIR = env.PioPlatform().get_package_dir("framework-libopencm3")
 assert isdir(FRAMEWORK_DIR)
 
@@ -139,7 +141,6 @@ def merge_ld_scripts(main_ld_file):
 #
 # Processing ...
 #
-
 
 root_dir = join(FRAMEWORK_DIR, "lib")
 if env.BoardConfig().get("build.core") == "tivac":

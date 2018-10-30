@@ -101,7 +101,7 @@ def get_source_files(src_dir):
 
     for include in mkdata['includes']:
         _mkdata = parse_makefile_data(normpath(join(src_dir, include)))
-        for key, value in _mkdata.iteritems():
+        for key, value in _mkdata.items():
             for v in value:
                 if v not in mkdata[key]:
                     mkdata[key].append(v)

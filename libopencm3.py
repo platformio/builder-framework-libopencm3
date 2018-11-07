@@ -150,7 +150,7 @@ if env.BoardConfig().get("build.core") == "tivac":
     root_dir = join(root_dir, "lm4f")
 elif env.BoardConfig().get("build.core") == "stm32":
     root_dir = join(root_dir, env.BoardConfig().get("build.core"),
-                    env.BoardConfig().get("build.variant")[5:7])
+                    env.BoardConfig().get("build.mcu")[5:7])
 
 env.Append(
     CPPPATH=[

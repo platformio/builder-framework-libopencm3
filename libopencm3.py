@@ -148,8 +148,8 @@ if env.BoardConfig().get("build.core") == "tivac":
         CPPDEFINES=["LM4F"]
     )
     root_dir = join(root_dir, "lm4f")
-elif env.BoardConfig().get("build.core") == "stm32":
-    root_dir = join(root_dir, env.BoardConfig().get("build.core"),
+elif env.BoardConfig().get("build.mcu").startswith("stm32"):
+    root_dir = join(root_dir, "stm32",
                     env.BoardConfig().get("build.mcu")[5:7])
 
 env.Append(

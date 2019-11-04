@@ -117,7 +117,9 @@ def get_source_files(src_dir):
 
 
 def merge_ld_scripts(main_ld_file):
-
+    # re to find multi-line comments
+    commentsre = re.compile(r"/\*.*?\*/", re.M|re.DOTALL)
+    
     def _include_callback(match):
         included_ld_file = match.group(1)
         # search included ld file in lib directories
@@ -125,12 +127,12 @@ def merge_ld_scripts(main_ld_file):
             if included_ld_file not in files:
                 continue
             with open(join(root, included_ld_file)) as fp:
-                return fp.read()
+                return commentsre.sub("", fp.read())
         return match.group(0)
 
     content = ""
     with open(main_ld_file) as f:
-        content = f.read()
+        content = commentsre.sub("", f.read())
 
     incre = re.compile(r"^INCLUDE\s+\"?([^\.]+\.ld)\"?", re.M)
     with open(main_ld_file, "w") as f:

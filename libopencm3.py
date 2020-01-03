@@ -34,6 +34,7 @@ from SCons.Script import DefaultEnvironment
 from platformio.util import exec_command
 
 env = DefaultEnvironment()
+board = env.BoardConfig()
 
 env.SConscript("../_bare.py")
 
@@ -52,8 +53,8 @@ def find_ldscript(src_dir):
 
     if len(matches) == 1:
         ldscript = matches[0]
-    elif isfile(join(src_dir, env.BoardConfig().get("build.ldscript", ""))):
-        ldscript = join(src_dir, env.BoardConfig().get("build.ldscript"))
+    elif isfile(join(src_dir, board.get("build.libopencm3.ldscript", ""))):
+        ldscript = join(src_dir, board.get("build.libopencm3.ldscript"))
 
     return ldscript
 
@@ -143,14 +144,13 @@ def merge_ld_scripts(main_ld_file):
 #
 
 root_dir = join(FRAMEWORK_DIR, "lib")
-if env.BoardConfig().get("build.core") == "tivac":
+if board.get("build.core") == "tivac":
     env.Append(
         CPPDEFINES=["LM4F"]
     )
     root_dir = join(root_dir, "lm4f")
-elif env.BoardConfig().get("build.mcu").startswith("stm32"):
-    root_dir = join(root_dir, "stm32",
-                    env.BoardConfig().get("build.mcu")[5:7])
+elif board.get("build.mcu").startswith("stm32"):
+    root_dir = join(root_dir, "stm32", board.get("build.mcu")[5:7])
 
 env.Append(
     CPPPATH=[
@@ -159,16 +159,12 @@ env.Append(
     ]
 )
 
-ldscript_path = find_ldscript(root_dir)
-if ldscript_path:
-    merge_ld_scripts(ldscript_path)
-generate_nvic_files()
-
-# override ldscript by libopencm3
-assert "LDSCRIPT_PATH" in env
-env.Replace(
-    LDSCRIPT_PATH=ldscript_path
-)
+if not board.get("build.ldscript", ""):
+    ldscript_path = find_ldscript(root_dir)
+    if ldscript_path:
+        merge_ld_scripts(ldscript_path)
+    generate_nvic_files()
+    env.Replace(LDSCRIPT_PATH=ldscript_path)
 
 libs = []
 env.VariantDir(

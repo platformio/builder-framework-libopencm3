@@ -174,3 +174,34 @@ env.Append(
         join(FRAMEWORK_DIR, "lib")
     ]
 )
+
+env.Append(
+    ASFLAGS=["-x", "assembler-with-cpp"],
+
+    CCFLAGS=[
+        "-fno-common", # place uninitialized global vars in BSS
+        "-ffunction-sections",  # place each function in its own section
+        "-fdata-sections", # same for data
+        "-mthumb",
+    ],
+
+    LINKFLAGS=[
+        "-Wl,--gc-sections",
+        "-nostartfiles",
+        "-nostdlib",
+        "-mthumb",
+    ],
+)
+
+if "BOARD" in env:
+    env.Append(
+        CCFLAGS=[
+            "-mcpu=%s" % env.BoardConfig().get("build.cpu")
+        ],
+        LINKFLAGS=[
+            "-mcpu=%s" % env.BoardConfig().get("build.cpu")
+        ]
+    )
+
+# copy CCFLAGS to ASFLAGS (-x assembler-with-cpp mode)
+env.Append(ASFLAGS=env.get("CCFLAGS", [])[:])

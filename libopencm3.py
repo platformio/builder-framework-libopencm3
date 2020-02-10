@@ -38,23 +38,33 @@ env = DefaultEnvironment()
 FRAMEWORK_DIR = env.PioPlatform().get_package_dir("framework-libopencm3")
 assert isdir(FRAMEWORK_DIR)
 
+PROJECT_DIR = env["PROJECT_DIR"]
+assert isdir(PROJECT_DIR)
 
 def find_ldscript(src_dir):
     ldscript = None
     matches = []
+
+    # find any chip-specific ldscripts included in libopencm3 lib/stm32/<series>/
     for item in sorted(listdir(src_dir)):
         _path = join(src_dir, item)
         if not isfile(_path) or not item.endswith(".ld"):
             continue
         matches.append(_path)
 
+    board_ldscript = env.BoardConfig().get("build.ldscript", "")
+
     if len(matches) == 1:
+        # if there was only one, assume it's good for the whole series (i guess?)
         ldscript = matches[0]
-    elif isfile(join(src_dir, env.BoardConfig().get("build.ldscript", ""))):
-        ldscript = join(src_dir, env.BoardConfig().get("build.ldscript"))
+    elif isfile(join(src_dir, board_ldscript)):
+        # if more/less than one, rely on the user specifying which to use
+        ldscript = join(src_dir, board_ldscript)
+    elif isfile(join(PROJECT_DIR, board_ldscript)):
+        # allow to supply an ldscript from the project directory
+        ldscript = join(PROJECT_DIR, board_ldscript)
 
     return ldscript
-
 
 def generate_nvic_files():
     for root, _, files in walk(join(FRAMEWORK_DIR, "include", "libopencm3")):
@@ -115,31 +125,9 @@ def get_source_files(src_dir):
                 break
     return sources
 
-
-def merge_ld_scripts(main_ld_file):
-
-    def _include_callback(match):
-        included_ld_file = match.group(1)
-        # search included ld file in lib directories
-        for root, _, files in walk(join(FRAMEWORK_DIR, "lib")):
-            if included_ld_file not in files:
-                continue
-            with open(join(root, included_ld_file)) as fp:
-                return fp.read()
-        return match.group(0)
-
-    content = ""
-    with open(main_ld_file) as f:
-        content = f.read()
-
-    incre = re.compile(r"^INCLUDE\s+\"?([^\.]+\.ld)\"?", re.M)
-    with open(main_ld_file, "w") as f:
-        f.write(incre.sub(_include_callback, content))
-
 #
 # Processing ...
 #
-
 
 root_dir = join(FRAMEWORK_DIR, "lib")
 if env.BoardConfig().get("build.core") == "tivac":
@@ -158,11 +146,9 @@ env.Append(
     ]
 )
 
-ldscript_path = find_ldscript(root_dir)
-if ldscript_path:
-    merge_ld_scripts(ldscript_path)
 generate_nvic_files()
 
+ldscript_path = find_ldscript(root_dir)
 # override ldscript by libopencm3
 assert "LDSCRIPT_PATH" in env
 env.Replace(
@@ -181,3 +167,10 @@ libs.append(env.Library(
 ))
 
 env.Append(LIBS=libs)
+
+# make sure gcc can find the base ldscript "cortex-m-generic.ld" which is in this dir
+env.Append(
+    LIBPATH=[
+        join(FRAMEWORK_DIR, "lib")
+    ]
+)

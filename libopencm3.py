@@ -45,7 +45,7 @@ def find_ldscript(src_dir):
     ldscript = None
     matches = []
 
-    # find any chip-specific ldscripts included in libopencm3 lib/stm32/<series>/
+    # find any chip-specific ldscripts included with libopencm3 (it has many but not all)
     for item in sorted(listdir(src_dir)):
         _path = join(src_dir, item)
         if not isfile(_path) or not item.endswith(".ld"):
@@ -168,7 +168,7 @@ libs.append(env.Library(
 
 env.Append(LIBS=libs)
 
-# make sure gcc can find the base ldscript "cortex-m-generic.ld" which is in this dir
+# make sure gcc can find the ldscripts included in libopencm3
 env.Append(
     LIBPATH=[
         join(FRAMEWORK_DIR, "lib")

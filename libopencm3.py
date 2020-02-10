@@ -149,8 +149,6 @@ env.Append(
 generate_nvic_files()
 
 ldscript_path = find_ldscript(root_dir)
-# override ldscript by libopencm3
-assert "LDSCRIPT_PATH" in env
 env.Replace(
     LDSCRIPT_PATH=ldscript_path
 )

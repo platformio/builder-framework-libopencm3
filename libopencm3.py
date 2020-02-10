@@ -54,15 +54,15 @@ def find_ldscript(src_dir):
 
     board_ldscript = env.BoardConfig().get("build.ldscript", "")
 
-    if len(matches) == 1:
+    if isfile(join(PROJECT_DIR, board_ldscript)):
+        # allow to supply an ldscript from the project directory
+        ldscript = join(PROJECT_DIR, board_ldscript)
+    elif len(matches) == 1:
         # if there was only one, assume it's good for the whole series (i guess?)
         ldscript = matches[0]
     elif isfile(join(src_dir, board_ldscript)):
         # if more/less than one, rely on the user specifying which to use
         ldscript = join(src_dir, board_ldscript)
-    elif isfile(join(PROJECT_DIR, board_ldscript)):
-        # allow to supply an ldscript from the project directory
-        ldscript = join(PROJECT_DIR, board_ldscript)
 
     return ldscript
 

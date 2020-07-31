@@ -31,9 +31,11 @@ from os.path import isdir, isfile, join, normpath
 
 from SCons.Script import DefaultEnvironment
 
-from platformio.util import exec_command
+from platformio.proc import exec_command
 
 env = DefaultEnvironment()
+board = env.BoardConfig()
+MCU = board.get("build.mcu")
 
 FRAMEWORK_DIR = env.PioPlatform().get_package_dir("framework-libopencm3")
 assert isdir(FRAMEWORK_DIR)
@@ -50,8 +52,8 @@ def find_ldscript(src_dir):
 
     if len(matches) == 1:
         ldscript = matches[0]
-    elif isfile(join(src_dir, env.BoardConfig().get("build.ldscript", ""))):
-        ldscript = join(src_dir, env.BoardConfig().get("build.ldscript"))
+    elif isfile(join(src_dir, board.get("build.libopencm3.ldscript", ""))):
+        ldscript = join(src_dir, board.get("build.libopencm3.ldscript"))
 
     return ldscript
 
@@ -62,7 +64,7 @@ def generate_nvic_files():
             continue
 
         exec_command(
-            ["python", join("scripts", "irq2nvic_h"),
+            [env.subst("$PYTHONEXE"), join("scripts", "irq2nvic_h"),
              join("." + root.replace(FRAMEWORK_DIR, ""),
                   "irq.json").replace("\\", "/")],
             cwd=FRAMEWORK_DIR
@@ -78,18 +80,18 @@ def parse_makefile_data(makefile):
         # fetch "includes"
         re_include = re.compile(r"^include\s+([^\r\n]+)", re.M)
         for match in re_include.finditer(content):
-            data['includes'].append(match.group(1))
+            data["includes"].append(match.group(1))
 
         # fetch "vpath"s
         re_vpath = re.compile(r"^VPATH\s+\+?=\s+([^\r\n]+)", re.M)
         for match in re_vpath.finditer(content):
-            data['vpath'] += match.group(1).split(":")
+            data["vpath"] += match.group(1).split(":")
 
         # fetch obj files
         objs_match = re.search(
             r"^OBJS\s+\+?=\s+([^\.]+\.o\s*(?:\s+\\s+)?)+", content, re.M)
         assert objs_match
-        data['objs'] = re.sub(
+        data["objs"] = re.sub(
             r"(OBJS|[\+=\\\s]+)", "\n", objs_match.group(0)).split()
     return data
 
@@ -97,7 +99,7 @@ def parse_makefile_data(makefile):
 def get_source_files(src_dir):
     mkdata = parse_makefile_data(join(src_dir, "Makefile"))
 
-    for include in mkdata['includes']:
+    for include in mkdata["includes"]:
         _mkdata = parse_makefile_data(normpath(join(src_dir, include)))
         for key, value in _mkdata.items():
             for v in value:
@@ -105,9 +107,9 @@ def get_source_files(src_dir):
                     mkdata[key].append(v)
 
     sources = []
-    for obj_file in mkdata['objs']:
+    for obj_file in mkdata["objs"]:
         src_file = obj_file[:-1] + "c"
-        for search_path in mkdata['vpath']:
+        for search_path in mkdata["vpath"]:
             src_path = normpath(join(src_dir, search_path, src_file))
             if isfile(src_path):
                 sources.append(join("$BUILD_DIR", "FrameworkLibOpenCM3",
@@ -116,68 +118,164 @@ def get_source_files(src_dir):
     return sources
 
 
-def merge_ld_scripts(main_ld_file):
+def generate_ldscript(variant):
+    result = exec_command([
+        env.subst("$PYTHONEXE"),
+        join(FRAMEWORK_DIR, "scripts", "genlink.py"),
+        join(FRAMEWORK_DIR, "ld", "devices.data"),
+        variant, "DEFS"
+    ])
 
-    def _include_callback(match):
-        included_ld_file = match.group(1)
-        # search included ld file in lib directories
-        for root, _, files in walk(join(FRAMEWORK_DIR, "lib")):
-            if included_ld_file not in files:
-                continue
-            with open(join(root, included_ld_file)) as fp:
-                return fp.read()
-        return match.group(0)
+    device_symbols = ""
+    if result["returncode"] == 0:
+        device_symbols = result["out"]
+        assert all(f in device_symbols for f in ("_ROM_OFF", "_RAM_OFF"))
+        # Fall back to values from board manifest if genlink failed
+        if "-D_ROM=" not in device_symbols:
+            device_symbols = device_symbols + " -D_ROM=%d" % board.get(
+                "upload.maximum_size", 0)
+        if "-D_RAM=" not in device_symbols:
+            device_symbols = device_symbols + " -D_RAM=%d" % board.get(
+                "upload.maximum_ram_size", 0)
+    else:
+        print("Warning! Couldn't generate linker script for %s" % variant)
+        print(result["out"])
+        print(result["err"])
 
-    content = ""
-    with open(main_ld_file) as f:
-        content = f.read()
+    cmd = "$CC -P -E $SOURCE -o $TARGET " + device_symbols + " " + " ".join(
+        [f for f in env["CCFLAGS"] if f.startswith("-m")])
 
-    incre = re.compile(r"^INCLUDE\s+\"?([^\.]+\.ld)\"?", re.M)
-    with open(main_ld_file, "w") as f:
-        f.write(incre.sub(_include_callback, content))
+    return env.Command(
+        join("$BUILD_DIR", "generated.%s.ld" % variant),
+        join(FRAMEWORK_DIR, "ld", "linker.ld.S"),
+        env.VerboseAction(cmd, "Generating linker script $TARGET")
+    )
+
+
+def get_ld_device(platform):
+    ld_device = MCU
+    if platform == "ststm32":
+        ld_device = ld_device[0:11]
+    # Script cannot generate precise scripts for the following platforms.
+    # Instead family and memory sizes from board manifest are used
+    elif platform == "titiva":
+        ld_device = "lm4f"
+
+    return board.get("build.libopencm3.ld_device", ld_device)
+
 
 #
 # Processing ...
 #
 
 
+platform = env.subst("$PIOPLATFORM")
 root_dir = join(FRAMEWORK_DIR, "lib")
-if env.BoardConfig().get("build.core") == "tivac":
-    env.Append(
-        CPPDEFINES=["LM4F"]
-    )
+variant = MCU
+if platform == "titiva":
+    env.Append(CPPDEFINES=["LM4F"])
     root_dir = join(root_dir, "lm4f")
-elif env.BoardConfig().get("build.core") == "stm32":
-    root_dir = join(root_dir, env.BoardConfig().get("build.core"),
-                    env.BoardConfig().get("build.mcu")[5:7])
+elif platform == "ststm32":
+    variant = MCU[0:7]
+    root_dir = join(root_dir, "stm32", MCU[5:7])
+    env.AppendUnique(CPPDEFINES=[variant.upper()])
+elif platform == "nxplpc":
+    variant = MCU[0:5] + "xx"
+    root_dir = join(root_dir, variant)
+    env.AppendUnique(CPPDEFINES=[variant.upper()])
+elif platform == "siliconlabsefm32":
+    root_dir = join(root_dir, "efm32", MCU[5:7])
+    env.AppendUnique(CPPDEFINES=[MCU[0:7].upper()])
+
+generate_nvic_files()
 
 env.Append(
+    ASFLAGS=["-x", "assembler-with-cpp"],
+
+    CCFLAGS=[
+        "-Os",  # optimize for size
+        "-ffunction-sections",  # place each function in its own section
+        "-fdata-sections",
+        "-Wall",
+        "-Wextra",
+        "-Wimplicit-function-declaration",
+        "-Wredundant-decls",
+        "-Wmissing-prototypes",
+        "-Wstrict-prototypes",
+        "-Wshadow",
+        "-fno-common",
+        "-mthumb",
+        "-mcpu=%s" % board.get("build.cpu")
+    ],
+
+    CXXFLAGS=[
+        "-fno-rtti",
+        "-fno-exceptions"
+    ],
+
+    CPPDEFINES=[
+        ("F_CPU", "$BOARD_F_CPU"),
+        board.get("build.libopencm3.variant", "").upper()
+    ],
+
     CPPPATH=[
         FRAMEWORK_DIR,
         join(FRAMEWORK_DIR, "include")
+    ],
+
+    LINKFLAGS=[
+        "-Os",
+        "-Wl,--gc-sections",
+        "-mthumb",
+        "-mcpu=%s" % board.get("build.cpu"),
+        "-nostartfiles",
+        "--static"
+    ],
+
+    LIBS=["c", "gcc", "m", "stdc++", "nosys"],
+
+    LIBPATH=[
+        join(FRAMEWORK_DIR, "lib")
     ]
 )
 
-ldscript_path = find_ldscript(root_dir)
-if ldscript_path:
-    merge_ld_scripts(ldscript_path)
-generate_nvic_files()
+if board.get("build.cpu", "") in ("cortex-m4", "cortex-m7"):
+    fpv_version = "4-sp"
+    if MCU.startswith("stm32h7"):
+        fpv_version = "5"
+    elif board.get("build.cpu", "") == "cortex-m7":
+        fpv_version = "5-sp"
 
-# override ldscript by libopencm3
-assert "LDSCRIPT_PATH" in env
-env.Replace(
-    LDSCRIPT_PATH=ldscript_path
-)
+    env.Append(
+        CCFLAGS=[
+            "-mfloat-abi=hard",
+            "-mfpu=fpv%s-d16" % fpv_version
+        ],
 
-libs = []
+        LINKFLAGS=[
+            "-mfloat-abi=hard",
+            "-mfpu=fpv%s-d16" % fpv_version
+        ]
+    )
+
+# copy CCFLAGS to ASFLAGS (-x assembler-with-cpp mode)
+env.Append(ASFLAGS=env.get("CCFLAGS", [])[:])
+
+if not board.get("build.ldscript", ""):
+    ldscript = generate_ldscript(get_ld_device(platform))
+    env.Depends("$BUILD_DIR/$PROGNAME$PROGSUFFIX", ldscript)
+    env.Replace(LDSCRIPT_PATH=ldscript[0])
+
 env.VariantDir(
     join("$BUILD_DIR", "FrameworkLibOpenCM3"),
     FRAMEWORK_DIR,
     duplicate=False
 )
-libs.append(env.Library(
-    join("$BUILD_DIR", "FrameworkLibOpenCM3"),
-    get_source_files(root_dir)
-))
 
-env.Append(LIBS=libs)
+env.Append(
+    LIBS=[
+        env.Library(
+            join("$BUILD_DIR", "FrameworkLibOpenCM3"),
+            get_source_files(root_dir))
+    ]
+)

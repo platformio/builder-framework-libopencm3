@@ -192,16 +192,19 @@ generate_nvic_files()
 env.Append(
     ASFLAGS=["-x", "assembler-with-cpp"],
 
+    CFLAGS=[
+        "-Wimplicit-function-declaration",
+        "-Wmissing-prototypes",
+        "-Wstrict-prototypes"
+    ],
+
     CCFLAGS=[
         "-Os",  # optimize for size
         "-ffunction-sections",  # place each function in its own section
         "-fdata-sections",
         "-Wall",
         "-Wextra",
-        "-Wimplicit-function-declaration",
         "-Wredundant-decls",
-        "-Wmissing-prototypes",
-        "-Wstrict-prototypes",
         "-Wshadow",
         "-fno-common",
         "-mthumb",

@@ -232,7 +232,9 @@ env.Append(
         "-mthumb",
         "-mcpu=%s" % board.get("build.cpu"),
         "-nostartfiles",
-        "--static"
+        "--static",
+        "--specs=nano.specs",
+        "--specs=nosys.specs"
     ],
 
     LIBS=["c", "gcc", "m", "stdc++", "nosys"],

@@ -83,13 +83,13 @@ def parse_makefile_data(makefile):
             data["includes"].append(match.group(1))
 
         # fetch "vpath"s
-        re_vpath = re.compile(r"^VPATH\s+\+?=\s+([^\r\n]+)", re.M)
+        re_vpath = re.compile(r"^VPATH\s*\+?=\s*([^\r\n]+)", re.M)
         for match in re_vpath.finditer(content):
             data["vpath"] += match.group(1).split(":")
 
         # fetch obj files
         objs_match = re.search(
-            r"^OBJS\s+\+?=\s+([^\.]+\.o\s*(?:\s+\\s+)?)+", content, re.M)
+            r"^OBJS\s*\+?=\s*([^\.]+\.o\s*(?:\s+\\s+)?)+", content, re.M)
         assert objs_match
         data["objs"] = re.sub(
             r"(OBJS|[\+=\\\s]+)", "\n", objs_match.group(0)).split()

@@ -189,8 +189,16 @@ elif platform == "siliconlabsefm32":
 
 generate_nvic_files()
 
+machine_flags = [
+    "-mthumb",
+    "-mcpu=%s" % board.get("build.cpu"),
+]
+
 env.Append(
-    ASFLAGS=["-x", "assembler-with-cpp"],
+    ASFLAGS=machine_flags,
+    ASPPFLAGS=[
+        "-x", "assembler-with-cpp",
+    ],
 
     CFLAGS=[
         "-Wimplicit-function-declaration",
@@ -198,7 +206,7 @@ env.Append(
         "-Wstrict-prototypes"
     ],
 
-    CCFLAGS=[
+    CCFLAGS=machine_flags + [
         "-Os",  # optimize for size
         "-ffunction-sections",  # place each function in its own section
         "-fdata-sections",
@@ -207,8 +215,6 @@ env.Append(
         "-Wredundant-decls",
         "-Wshadow",
         "-fno-common",
-        "-mthumb",
-        "-mcpu=%s" % board.get("build.cpu")
     ],
 
     CXXFLAGS=[
@@ -226,11 +232,9 @@ env.Append(
         join(FRAMEWORK_DIR, "include")
     ],
 
-    LINKFLAGS=[
+    LINKFLAGS=machine_flags + [
         "-Os",
         "-Wl,--gc-sections",
-        "-mthumb",
-        "-mcpu=%s" % board.get("build.cpu"),
         "-nostartfiles",
         "--static",
         "--specs=nano.specs",
@@ -262,9 +266,6 @@ if board.get("build.cpu", "") in ("cortex-m4", "cortex-m7"):
             "-mfpu=fpv%s-d16" % fpv_version
         ]
     )
-
-# copy CCFLAGS to ASFLAGS (-x assembler-with-cpp mode)
-env.Append(ASFLAGS=env.get("CCFLAGS", [])[:])
 
 if not board.get("build.ldscript", ""):
     ldscript = generate_ldscript(get_ld_device(platform))

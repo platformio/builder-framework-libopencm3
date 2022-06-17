@@ -256,6 +256,11 @@ if board.get("build.cpu", "") in ("cortex-m4", "cortex-m7"):
         fpv_version = "5-sp"
 
     env.Append(
+        ASFLAGS=[
+            "-mfloat-abi=hard",
+            "-mfpu=fpv%s-d16" % fpv_version
+        ],
+
         CCFLAGS=[
             "-mfloat-abi=hard",
             "-mfpu=fpv%s-d16" % fpv_version
